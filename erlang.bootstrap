@@ -1,0 +1,414 @@
+#!/bin/sh
+
+# @todo deps relx.config license
+# @todo gen_fsm gen_event
+
+DIALOG=dialog
+PROJECT=${PWD##*/}
+TARGET=$PWD
+TFILE="/tmp/$(basename $0).$$.tmp"
+
+# New application
+
+function new_app {
+	$DIALOG --clear --title "Application or library?" \
+		--yesno "Application could not be found in the current directory.
+Creating a new application in $TARGET/\n\n
+Is this an OTP application?\n\n
+Please answer no if this is only a library of modules." 14 70
+
+	is_OTP=$?
+
+	case $is_OTP in
+		255) exit 255 ;;
+		*) new_app_build $is_OTP ;;
+	esac
+}
+
+function new_app_build {
+	echo $1
+	(
+		mkdir -p src
+		echo 10
+		wget -q https://raw.github.com/extend/erlang.mk/master/erlang.mk \
+			--no-check-certificate -O erlang.mk
+		echo 40
+		echo \
+"PROJECT = $PROJECT
+include erlang.mk" \
+			> Makefile
+		echo 50
+		echo \
+"$PROJECT
+==========
+
+Describe your project here." \
+			> README.md
+		echo 60
+		case $1 in
+			0)
+				echo \
+"{application, $PROJECT, [
+    {description, \"Created with erlang.bootstrap.\"},
+    {vsn, \"0.1.0\"},
+    {modules, []},
+    {registered, [${PROJECT}_sup]},
+    {applications, [
+        kernel,
+        stdlib
+    ]},
+    {mod, {${PROJECT}_app, []}},
+    {env, []}
+]}." \
+					> "src/${PROJECT}.app.src"
+				echo 70
+				echo \
+"-module(${PROJECT}_app).
+-behaviour(application).
+
+-export([start/2]).
+-export([stop/1]).
+
+start(_Type, _Args) ->
+    ${PROJECT}_sup:start_link().
+
+stop(_State) ->
+    ok." \
+					> "src/${PROJECT}_app.erl"
+				echo 80
+				echo \
+"-module(${PROJECT}_sup).
+-behaviour(supervisor).
+
+-export([start_link/0]).
+-export([init/1]).
+
+start_link() ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+
+init([]) ->
+    Procs = [],
+    {ok, {{one_for_one, 10, 10}, Procs}}." \
+					> "src/${PROJECT}_sup.erl"
+				;;
+			1)
+				echo \
+"{application, $PROJECT, [
+    {description, \"Created with erlang.bootstrap.\"},
+    {vsn, \"0.1.0\"},
+    {modules, []},
+    {registered, [${PROJECT}_sup]},
+    {applications, [
+        kernel,
+        stdlib
+    ]}
+]}." \
+					> "src/${PROJECT}.app.src"
+				;;
+		esac
+		echo 90
+		git init
+		echo 100
+	) |
+	$DIALOG --clear --title "New application" \
+		--gauge "Please wait while the application is being created..." 14 70 0
+}
+
+# Main screen
+
+function main {
+	$DIALOG --clear --title "Main menu" \
+		--menu "Welcome to erlang.bootstrap.\n\n
+Current directory is $TARGET/\n\n
+Please choose one of the options below." 20 70 8 \
+		"Add a module" "Populate your project from templates" \
+		"Edit .app.src file" "Add a version or description" \
+		"Edit Makefile" "Add compile or test options" \
+		"Edit README" "Describe your project" \
+		2> $TFILE
+
+	case $? in
+		0)
+			case `cat $TFILE` in
+				"Add a module") main_add_mod ;;
+				"Edit .app.src file") main_edit src/$PROJECT.app.src ;;
+				"Edit Makefile") main_edit Makefile ;;
+				"Edit README") main_edit README.md ;;
+			esac
+			;;
+		*)
+			exit 0
+			;;
+	esac
+}
+
+# Add a module
+
+function main_add_mod {
+	$DIALOG --clear --title "Module name" \
+		--inputbox "The name SHOULD be lowercase, start with a letter
+	and only contain letter, number or underscore characters." 14 70 \
+		2> $TFILE
+
+	case $? in
+		1) return 1 ;;
+		255) return 255 ;;
+	esac
+
+	MODULE=`cat $TFILE`
+
+	$DIALOG --clear --title "Template" \
+		--menu "Please choose template from the list." 14 70 6 \
+		"Empty module" "Library of functions" \
+		"supervisor" "Supervisor" \
+		"gen_server" "Generic server" \
+		"Cowboy REST handler" "HTTP resource" \
+		"Cowboy Websocket handler" "Websocket connection" \
+		"Cowboy HTTP handler" "Basic HTTP" \
+		"Cowboy loop handler" "Delayed-reply HTTP" \
+		"Ranch protocol" "Custom protocol" \
+		2> $TFILE
+
+	case $? in
+		0)
+			case `cat $TFILE` in
+				"Empty module") mod_empty ;;
+				"supervisor") mod_supervisor ;;
+				"gen_server") mod_gen_server ;;
+				"gen_fsm") mod_gen_fsm ;;
+				"gen_event") mod_gen_event ;;
+				"Cowboy REST handler") mod_cowboy_rest ;;
+				"Cowboy Websocket handler") mod_cowboy_websocket ;;
+				"Cowboy HTTP handler") mod_cowboy_http ;;
+				"Cowboy loop handler") mod_cowboy_loop ;;
+				"Ranch protocol") mod_ranch_protocol ;;
+			esac
+			;;
+		*)
+			;;
+	esac
+}
+
+function mod_empty {
+	echo \
+"-module($MODULE).
+
+-export([doit/0]).
+
+doit() ->
+    ok." \
+		> src/$MODULE.erl
+}
+
+function mod_supervisor {
+	echo \
+"-module($MODULE).
+-behaviour(supervisor).
+
+-export([start_link/0]).
+-export([init/1]).
+
+start_link() ->
+    supervisor:start_link(?MODULE, []).
+
+init([]) ->
+    Procs = [],
+    {ok, {{one_for_one, 10, 10}, Procs}}." \
+		> src/$MODULE.erl
+}
+
+function mod_gen_server {
+	echo \
+"-module($MODULE).
+-behaviour(gen_server).
+
+%% API.
+-export([start_link/0]).
+
+%% gen_server.
+-export([init/1]).
+-export([handle_call/3]).
+-export([handle_cast/2]).
+-export([handle_info/2]).
+-export([terminate/2]).
+-export([code_change/3]).
+
+-record(state, {
+}).
+
+%% API.
+
+-spec start_link() -> {ok, pid()}.
+start_link() ->
+    gen_server:start_link(?MODULE, [], []).
+
+%% gen_server.
+
+init([]) ->
+    {ok, #state{}}.
+
+handle_call(_Request, _From, State) ->
+    {reply, ignored, State}.
+
+handle_cast(_Msg, State) ->
+    {noreply, State}.
+
+handle_info(_Info, State) ->
+    {noreply, State}.
+
+terminate(_Reason, _State) ->
+    ok.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}." \
+		> src/$MODULE.erl
+}
+
+function mod_cowboy_rest {
+	echo \
+"-module($MODULE).
+
+-export([init/3]).
+-export([content_types_provided/2]).
+-export([get_html/2]).
+
+init(_, _Req, _Opts) ->
+    {upgrade, protocol, cowboy_rest}.
+
+content_types_provided(Req, State) ->
+    {[{{<<\"text\">>, <<\"html\">>, '_'}, get_html}], Req, State}.
+
+get_html(Req, State) ->
+    {<<\"This is REST!\">>, Req, State}." \
+		> src/$MODULE.erl
+}
+
+function mod_cowboy_websocket {
+	echo \
+"-module($MODULE).
+-behaviour(cowboy_websocket_handler).
+
+-export([init/3]).
+-export([websocket_init/3]).
+-export([websocket_handle/3]).
+-export([websocket_info/3]).
+-export([websocket_terminate/3]).
+
+-record(state, {
+}).
+
+init(_, _, _) ->
+    {upgrade, protocol, cowboy_websocket}.
+
+websocket_init(_, Req, _Opts) ->
+    Req2 = cowboy_req:compact(Req),
+    {ok, Req2, #state{}}.
+
+websocket_handle({text, Data}, Req, State) ->
+    {reply, {text, Data}, Req, State};
+websocket_handle({binary, Data}, Req, State) ->
+    {reply, {binary, Data}, Req, State};
+websocket_handle(_Frame, Req, State) ->
+    {ok, Req, State}.
+
+websocket_info(_Info, Req, State) ->
+    {ok, Req, State}.
+
+websocket_terminate(_Reason, _Req, _State) ->
+    ok." \
+		> src/$MODULE.erl
+}
+
+function mod_cowboy_http {
+	echo \
+"-module($MODULE).
+-behaviour(cowboy_http_handler).
+
+-export([init/3]).
+-export([handle/2]).
+-export([terminate/3]).
+
+-record(state, {
+}).
+
+init(_, Req, _Opts) ->
+    {ok, Req, #state{}}.
+
+handle(Req, State=#state{}) ->
+    {ok, Req2} = cowboy_req:reply(200, Req),
+    {ok, Req2, State}.
+
+terminate(_Reason, _Req, _State) ->
+    ok." \
+		> src/$MODULE.erl
+}
+
+function mod_cowboy_loop {
+	echo \
+"-module($MODULE).
+-behaviour(cowboy_loop_handler).
+
+-export([init/3]).
+-export([info/3]).
+-export([terminate/3]).
+
+-record(state, {
+}).
+
+init(_, Req, _Opts) ->
+    {loop, Req, #state{}, 5000, hibernate}.
+
+info(_Info, Req, State) ->
+    {loop, Req, State, hibernate}.
+
+terminate(_Reason, _Req, _State) ->
+    ok." \
+		> src/$MODULE.erl
+}
+
+function mod_ranch_protocol {
+	echo \
+"-module($MODULE).
+-behaviour(ranch_protocol).
+
+-export([start_link/4]).
+-export([init/4]).
+
+-type opts() :: [].
+-export_type([opts/0]).
+
+-record(state, {
+    socket :: inet:socket(),
+    transport :: module()
+}).
+
+%% API.
+
+start_link(Ref, Socket, Transport, Opts) ->
+    Pid = spawn_link(?MODULE, init, [Ref, Socket, Transport, Opts]),
+    {ok, Pid}.
+
+-spec init(ranch:ref(), inet:socket(), module(), opts()) -> ok.
+init(Ref, Socket, Transport, _Opts) ->
+    ok = ranch:accept_ack(Ref),
+    loop(#state{socket=Socket, transport=Transport}).
+
+loop(State) ->
+    loop(State)." \
+		> src/$MODULE.erl
+}
+
+# Edit files
+
+function main_edit {
+	$EDITOR $TARGET/$1
+}
+
+# --
+
+if [ ! -f "src/$PROJECT.app.src" ]
+then
+	new_app
+fi
+
+while true; do main ; done
