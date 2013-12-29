@@ -147,7 +147,7 @@ Please choose one of the options below." 20 70 8 \
 function main_add_mod {
 	$DIALOG --clear --title "Module name" \
 		--inputbox "The name SHOULD be lowercase, start with a letter
-	and only contain letter, number or underscore characters." 14 70 \
+and only contain letter, number or underscore characters." 14 70 \
 		2> $TFILE
 
 	case $? in
