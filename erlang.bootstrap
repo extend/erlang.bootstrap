@@ -118,6 +118,7 @@ init([]) ->
 
 function main {
 	$DIALOG --clear --title "Main menu" \
+		--cancel-label "Exit" \
 		--menu "Welcome to erlang.bootstrap.\n\n
 Current directory is $TARGET/\n\n
 Please choose one of the options below." 20 70 8 \
